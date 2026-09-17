@@ -44,6 +44,10 @@ ShellRoot {
         id: pinsStore
     }
 
+    Theme {
+        id: sysTheme
+    }
+
     IpcHandler {
         target: "clipboard"
 
@@ -74,6 +78,7 @@ ShellRoot {
             panelOpen: root.open
             service: clipboardSvc
             pins: pinsStore
+            theme: sysTheme
             onRequestClose: root.close()
         }
     }

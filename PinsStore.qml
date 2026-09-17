@@ -26,7 +26,20 @@ Item {
             const t = text().trim();
             if (t !== "") {
                 try {
-                    root.pins = JSON.parse(t);
+                    const loaded = JSON.parse(t);
+                    // Migrate pre-title pins (label-only) to title/sub shape
+                    root.pins = loaded.map(p => {
+                        if (p && p.kind === "image" && p.title === undefined)
+                            return {
+                                kind: "image",
+                                mime: p.mime,
+                                title: "Image",
+                                sub: "",
+                                path: p.path,
+                                created: p.created
+                            };
+                        return p;
+                    });
                 } catch (err) {
                     console.warn("clipboard: pins.json parse failed:", err);
                 }
@@ -52,11 +65,12 @@ Item {
         root._save();
     }
 
-    function addImage(mime: string, label: string, path: string): void {
+    function addImage(mime: string, title: string, sub: string, path: string): void {
         root.pins = [{
             kind: "image",
             mime: mime,
-            label: label,
+            title: title,
+            sub: sub,
             path: path,
             created: Date.now()
         }].concat(root.pins);

@@ -113,13 +113,68 @@ Item {
                 preview: preview,
                 isImage: isImage,
                 mime: mime,
-                thumb: ""
+                thumb: "",
+                kind: root._kindOf(preview, isImage),
+                title: "",
+                sub: ""
             });
             if (parsed.length >= root.maxEntries)
                 break;
         }
-        root.entries = parsed;
+        root.entries = parsed.map(e => {
+            if (e.isImage) {
+                const meta = root._imageMeta(e.preview);
+                return {
+                    cid: e.cid,
+                    preview: e.preview,
+                    isImage: true,
+                    mime: e.mime,
+                    thumb: "",
+                    kind: "image",
+                    title: meta.title,
+                    sub: meta.sub
+                };
+            }
+            return {
+                cid: e.cid,
+                preview: e.preview,
+                isImage: false,
+                mime: "",
+                thumb: "",
+                kind: e.kind,
+                title: e.preview,
+                sub: ""
+            };
+        });
         root._genThumbs();
+    }
+
+    // Presentation-only classification for icons/labels. Never affects
+    // copy/delete behavior (those use cid only).
+    function _kindOf(preview: string, isImage: bool): string {
+        if (isImage)
+            return "image";
+        if (/^\s*(https?:\/\/|www\.)/.test(preview))
+            return "url";
+        if (/```/.test(preview) || (/[{;}()]/.test(preview) && /(fn |def |class |import |const |let |var |return |function |=>|#include|package )/.test(preview)))
+            return "code";
+        return "text";
+    }
+
+    // Friendly "Image" title + "png · 2 MiB · 1536x1024" subtitle so rows
+    // never show the raw "[[ binary data ... ]]" string.
+    function _imageMeta(preview: string): var {
+        const m = preview.match(/\[\[ binary data ([^\]]+)\]\]/);
+        if (!m)
+            return {
+                title: "Image",
+                sub: ""
+            };
+        const parts = m[1].trim().split(/\s+/);
+        return {
+            title: "Image",
+            sub: parts.join(" · ")
+        };
     }
 
     function _genThumbs(): void {
@@ -152,7 +207,10 @@ Item {
                     preview: e.preview,
                     isImage: true,
                     mime: e.mime,
-                    thumb: byId[e.cid]
+                    thumb: byId[e.cid],
+                    kind: e.kind,
+                    title: e.title,
+                    sub: e.sub
                 };
             return e;
         });
@@ -182,6 +240,15 @@ Item {
         root._seqCb = () => root.refresh();
         seqProc.running = false;
         seqProc.command = ["sh", "-c", "cliphist list | awk -F'\t' '$1==" + id + "' | cliphist delete; echo DONE"];
+        seqProc.running = true;
+    }
+
+    // Wipe all history (pins live in their own store and survive this)
+    function wipeHistory(): void {
+        root.loading = true;
+        root._seqCb = () => root.refresh();
+        seqProc.running = false;
+        seqProc.command = ["sh", "-c", "cliphist wipe; echo DONE"];
         seqProc.running = true;
     }
 

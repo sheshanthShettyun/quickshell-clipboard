@@ -1,9 +1,10 @@
 # quickshell-clipboard
 
-A standalone [Quickshell](https://quickshell.org/) clipboard panel backed by
+A standalone [Quickshell](https://quickshell.org/) clipboard shelf backed by
 [cliphist](https://github.com/sentriz/cliphist). Built for Hyprland alongside
 the Caelestia shell, but it runs as its own independent config so shell
-updates can't break it.
+updates can't break it. Edge-Drop-inspired UX (filter chips, preview flyout)
+in Caelestia's visual language.
 
 ## Features
 
@@ -11,19 +12,29 @@ updates can't break it.
 - **Wipe-proof pins** — pinned entries stored in
   `~/.local/share/clipboard-panel/pins.json`, survive `cliphist wipe`
 - **Search** — type to filter history + pins (`Enter` copies the top match)
-- **Per-row delete** — no separate delete mode needed
-- **Opens on the focused monitor**, styled like the Caelestia shell
-  (Rubik + `Text.NativeRendering`)
+- **Category chips** — All / Text / Images / Links / Code / Pinned with live
+  counts, combined with search
+- **Preview flyout** — single-click a card for full scrollable text or
+  full-size image plus Copy / Pin / Delete; double-click (or `Enter`) copies
+  instantly; `Esc` steps back out
+- **Content-type icons** — Material Symbols glyphs per kind
+  (text / link / code / image thumbnail), same icon language as Caelestia
+- **Per-row delete**, **Clear history** pill (pins survive it)
+- **Live Caelestia theming** — reads the shell's dynamic `scheme.json`, so
+  the panel re-themes itself on wallpaper / light-dark changes
+- **Opens on the focused monitor**, Rubik + `Text.NativeRendering` like the
+  Caelestia bars and panels
 
 ## Files
 
-| File                 | Role                                              |
-| -------------------- | ------------------------------------------------- |
-| `shell.qml`          | `ShellRoot`, per-screen panel windows, IPC target |
-| `ClipboardService.qml` | cliphist backend (list / decode / delete / copy) |
-| `PinsStore.qml`      | pinned entries JSON store                         |
-| `ClipboardPanel.qml` | panel window: search, pinned + history sections   |
-| `ClipRow.qml`        | one row: thumbnail/badge + preview + pin/delete   |
+| File                   | Role                                                |
+| ---------------------- | --------------------------------------------------- |
+| `shell.qml`            | `ShellRoot`, per-screen panel windows, IPC targets  |
+| `ClipboardService.qml` | cliphist backend (list / decode / delete / copy) + content-kind detection |
+| `PinsStore.qml`        | pinned entries JSON store                           |
+| `ClipboardPanel.qml`   | shelf window: search, chips, pinned + history, preview overlay |
+| `ClipRow.qml`          | one card: icon/thumbnail + text + pin/delete        |
+| `Theme.qml`            | live bridge to the Caelestia dynamic scheme         |
 
 ## Dependencies
 
@@ -31,6 +42,7 @@ updates can't break it.
 - `cliphist`
 - `wl-clipboard` (`wl-copy`)
 - Hyprland (window + keybind integration)
+- Fonts: Rubik, Material Symbols Rounded (same as the Caelestia shell)
 
 ## Install
 
@@ -55,17 +67,21 @@ wl-paste --type image --watch cliphist store
 
 ## IPC
 
-| Command                                    | Effect              |
-| ------------------------------------------ | ------------------- |
-| `qs -c clipboard ipc call clipboard toggle`  | toggle panel        |
-| `qs -c clipboard ipc call clipboard open`    | open panel          |
-| `qs -c clipboard ipc call clipboard close`   | close panel         |
-| `qs -c clipboard ipc call clipboard refresh` | refresh from cliphist |
+| Command                                              | Effect                    |
+| ---------------------------------------------------- | ------------------------- |
+| `qs -c clipboard ipc call clipboard toggle`          | toggle panel              |
+| `qs -c clipboard ipc call clipboard open`            | open panel                |
+| `qs -c clipboard ipc call clipboard close`           | close panel               |
+| `qs -c clipboard ipc call clipboard refresh`         | refresh from cliphist     |
+| `qs -c clipboard ipc call clipboardUi setFilter <k>` | set category (`all`, `text`, `images`, `links`, `code`, `pinned`) |
+| `qs -c clipboard ipc call clipboardUi previewTop`    | preview the top history entry |
 
 ## Notes
 
 - Binary clipboard data never passes through QML — all decode/copy/delete
   happens in `sh` pipelines; QML only sees text previews and file paths.
 - Thumbnails live under `~/.cache/clipboard-panel/thumbs/<run-id>/`.
-- `Esc` closes the panel. The UI font is a single `uiFont` property in
-  `ClipboardPanel.qml` (passed down to rows).
+- `Esc` steps back from preview, then closes the panel. The UI font is a
+  single `uiFont` property in `ClipboardPanel.qml` (passed down to rows).
+- Row highlights are panel-owned state (reset on close/refresh), so they
+  can never stick like per-delegate hover does.
