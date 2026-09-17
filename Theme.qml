@@ -21,6 +21,7 @@ Item {
     property string inkDim: "#b1a8b3"
     property string primary: "#d7bde8"
     property string primaryContainer: "#5f4a6e"
+    property string primaryContainerText: "#f2dbff"
     property string tertiary: "#ffd4e4"
     property string outline: "#7b737d"
     property string outlineVariant: "#4c464f"
@@ -46,9 +47,9 @@ Item {
         }
         if (!c)
             return;
-        const keys = ["surface", "surfaceContainerLow", "surfaceContainer", "surfaceContainerHigh", "surfaceContainerHighest", "ink", "inkDim", "primary", "primaryContainer", "tertiary", "outline", "outlineVariant"];
+        const keys = ["surface", "surfaceContainerLow", "surfaceContainer", "surfaceContainerHigh", "surfaceContainerHighest", "ink", "inkDim", "primary", "primaryContainer", "primaryContainerText", "tertiary", "outline", "outlineVariant"];
         for (const k of keys) {
-            const src = k === "ink" ? "onSurface" : k === "inkDim" ? "onSurfaceVariant" : k;
+            const src = k === "ink" ? "onSurface" : k === "inkDim" ? "onSurfaceVariant" : k === "primaryContainerText" ? "onPrimaryContainer" : k;
             if (c[src])
                 root[k] = "#" + c[src];
         }

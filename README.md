@@ -50,24 +50,58 @@ in Caelestia's visual language.
 
 ## Install
 
+### 1. Dependencies
+
+| Package | Fedora | Arch |
+|---|---|---|
+| `quickshell` | `copr:avengemedia/quickshell` | `quickshell` (AUR) |
+| `cliphist` | `dnf install cliphist` | `pacman -S cliphist` |
+| `wl-clipboard` | `dnf install wl-clipboard` | `pacman -S wl-clipboard` |
+
+Fonts are loaded automatically: Google Sans Flex + Material Symbols Rounded
+come from the Caelestia shell's own assets, so no font setup is needed
+(Caelestia must be installed).
+
+### 2. Install the config
+
 ```bash
-# 1. Put this repo at ~/.config/quickshell/clipboard
+# Clone this repo as a named quickshell config ("clipboard")
 git clone https://github.com/sheshanthShettyun/quickshell-clipboard.git \
   ~/.config/quickshell/clipboard
 
-# 2. Run persistently (add to your Hyprland startup)
-qs -c clipboard -d
-
-# 3. Bind a key to toggle (Hyprland example, SUPER+V)
-bind = SUPER, V, exec, qs -c clipboard ipc call clipboard toggle
+# Sanity check — should print "Configuration Loaded" with no errors
+timeout 8 qs -c clipboard
 ```
 
-Make sure `cliphist` is collecting history, e.g. on Hyprland start:
+### 3. Collect clipboard history
+
+`cliphist` must be watching the clipboard. Add to your Hyprland startup
+(`hyprland.conf` `exec-once`, or the Lua equivalent):
 
 ```sh
 wl-paste --type text --watch cliphist store
 wl-paste --type image --watch cliphist store
 ```
+
+Verify with `cliphist list | head` after copying something.
+
+### 4. Run persistently + bind a toggle key
+
+Add to your Hyprland startup:
+
+```sh
+qs -c clipboard -d
+```
+
+And a toggle bind (`hyprland.conf` syntax shown; adapt to your config style):
+
+```ini
+bind = SUPER, V, exec, qs -c clipboard ipc call clipboard toggle
+```
+
+Press `SUPER+V` — the shelf slides in from the right edge. `Esc` closes it
+(steps back from preview first). Pinned items live in
+`~/.local/share/clipboard-panel/pins.json` and survive `cliphist wipe`.
 
 ## IPC
 

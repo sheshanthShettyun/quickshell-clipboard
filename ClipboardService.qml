@@ -16,7 +16,7 @@ Item {
 
     readonly property string cacheBase: Quickshell.env("HOME") + "/.cache/clipboard-panel/thumbs"
     readonly property int maxEntries: 100
-    readonly property int maxImages: 30
+    readonly property int maxImages: 16
 
     property var _seqCb: null
     property var _textCb: null

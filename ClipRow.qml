@@ -5,23 +5,40 @@ import QtQuick
 // One clipboard card: icon/thumbnail + text + actions.
 // Mirrors the Caelestia notification-card language:
 // layered surface, soft radius, generous padding, subtle icon actions.
+//
+// Hover discipline (nothing sticks): all hover VISUALS derive from the
+// panel-owned hoverKey ("<rowKey>" or "<rowKey>:<part>"); local
+// containsMouse only emits transitions via hoverPart(). All hover
+// tracking disables with hoverLive (toggled on panel close/open),
+// which resets any frozen Qt hover state.
 Item {
     id: row
 
     property var entry
     property bool pinned: false
-    // Panel-driven highlight (see hoverKey) — never sticks like containsMouse.
-    property bool highlighted: false
-    // UI font: Caelestia primary (loaded via FontLoader in shell.qml)
     property string uiFont: "Google Sans Flex"
     property string iconFont: "Material Symbols Rounded"
     property var theme
+
+    // Panel-driven state
+    property string hoverKey: ""
+    property string rowKey: ""
+    property bool hoverLive: true
+    property bool menuOpen: false
+    property double menuOpenedAt: 0
+    property bool uiActive: true
+
+    readonly property bool highlighted: row.hoverKey === row.rowKey || row.hoverKey.indexOf(row.rowKey + ":") === 0
+    readonly property bool starLit: row.hoverKey === row.rowKey + ":star"
+    readonly property bool menuLit: row.hoverKey === row.rowKey + ":menu" || row.menuOpen
+    readonly property bool rowActive: row.highlighted
 
     signal clicked()
     signal doubleClicked()
     signal pinClicked()
     signal delClicked()
-    signal hovered(bool on)
+    signal previewClicked()
+    signal hoverPart(string part)
 
     readonly property bool isImage: row.entry && row.entry.isImage
     readonly property string kind: row.entry && row.entry.kind ? row.entry.kind : "text"
@@ -31,14 +48,29 @@ Item {
     // Press point (row coords) for the ripple
     property real pressX: 0
     property real pressY: 0
+    // Press-and-hold opens the menu (big gesture target — no precision
+    // needed). The release-click afterwards is swallowed via holdUsed.
+    property bool holdUsed: false
 
     implicitHeight: 116
+
+    onRowActiveChanged: {
+        if (!row.rowActive)
+            row.menuOpen = false;
+    }
 
     Timer {
         id: clickTimer
 
         interval: 260
-        onTriggered: row.clicked()
+        onTriggered: {
+            row.holdUsed = false;
+            // A tap that just opened the menu must never also activate
+            // the row (double delivery / bounce taps).
+            if (row.menuOpen && Date.now() - row.menuOpenedAt < 500)
+                return;
+            row.clicked();
+        }
     }
 
     Rectangle {
@@ -108,28 +140,46 @@ Item {
         }
     }
 
+    // Row body: content only, NO nested interactive areas (nested hover
+    // areas make tap delivery ambiguous).
     MouseArea {
-        id: hover
+        id: bodyArea
 
         anchors.fill: parent
-        hoverEnabled: true
+        hoverEnabled: row.hoverLive
+        pressAndHoldInterval: 400
         onClicked: clickTimer.restart()
         onDoubleClicked: {
             clickTimer.stop();
+            row.holdUsed = false;
+            if (row.menuOpen && Date.now() - row.menuOpenedAt < 500)
+                return;
             row.doubleClicked();
         }
-        onContainsMouseChanged: row.hovered(containsMouse)
+        onContainsMouseChanged: {
+            if (!containsMouse && row.menuOpen)
+                return;
+            row.hoverPart(containsMouse ? "row" : "");
+        }
         onPressed: e => {
+            row.holdUsed = false;
             row.pressX = e.x - 2;
             row.pressY = e.y - 2;
             ripple.scale = 1;
             ripple.opacity = 0.12;
             rippleAnim.restart();
         }
+        onPressAndHold: {
+            row.holdUsed = true;
+            row.menuOpen = true;
+            row.menuOpenedAt = Date.now();
+        }
 
         Row {
             anchors.fill: parent
             anchors.margins: 12
+            // Leave room for the action cluster overlaying on the right
+            anchors.rightMargin: 92
             spacing: 12
 
             // Icon / thumbnail
@@ -144,6 +194,8 @@ Item {
                     visible: row.isImage && row.entry.thumb !== ""
                     source: visible ? "file://" + row.entry.thumb : ""
                     asynchronous: true
+                    sourceSize.width: row.iconBox * 2
+                    sourceSize.height: 176
                     fillMode: Image.PreserveAspectFit
                     smooth: true
                 }
@@ -170,7 +222,7 @@ Item {
 
             // Text column
             Item {
-                width: parent.width - row.iconBox - 80 - 48
+                width: parent.width - row.iconBox - 96 - 48
                 height: 88
                 anchors.verticalCenter: parent.verticalCenter
 
@@ -203,88 +255,197 @@ Item {
                     }
                 }
             }
+        }
+    }
 
-            // Actions
-            Item {
-                width: 80
-                height: 48
-                anchors.verticalCenter: parent.verticalCenter
+    // Action cluster: sibling overlay above the body area so taps are
+    // unambiguous (topmost receiver wins, no nesting).
+    Item {
+        anchors.fill: parent
 
-                Row {
+        Row {
+            anchors.right: parent.right
+            anchors.rightMargin: 8
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 8
+
+            Rectangle {
+                width: 44
+                height: 44
+                radius: 22
+                color: "transparent"
+
+                Text {
                     anchors.centerIn: parent
-                    spacing: 8
+                    text: "star"
+                    font.family: row.iconFont
+                    font.pixelSize: 22
+                    renderType: Text.NativeRendering
+                    color: row.pinned ? row.theme.tertiary : row.theme.inkDim
+                    opacity: (row.pinned || row.starLit) ? 1 : 0.7
 
-                    Rectangle {
-                        width: 36
-                        height: 36
-                        radius: 18
-                        color: pinHover.containsMouse ? row.theme.surfaceContainerHighest : "transparent"
-
-                        Behavior on color {
-                            NumberAnimation {
-                                duration: 200
-                            }
-                        }
-
-                        Text {
-                            anchors.centerIn: parent
-                            text: "star"
-                            font.family: row.iconFont
-                            font.pixelSize: 22
-                            renderType: Text.NativeRendering
-                            color: row.pinned ? row.theme.tertiary : row.theme.inkDim
-                            opacity: (row.pinned || pinHover.containsMouse) ? 1 : 0.7
-
-                            Behavior on opacity {
-                                NumberAnimation {
-                                    duration: 200
-                                }
-                            }
-                        }
-
-                        MouseArea {
-                            id: pinHover
-
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            onClicked: row.pinClicked()
+                    Behavior on opacity {
+                        NumberAnimation {
+                            duration: 200
                         }
                     }
+                }
 
-                    Rectangle {
-                        width: 36
-                        height: 36
-                        radius: 18
-                        color: delHover.containsMouse ? row.theme.surfaceContainerHighest : "transparent"
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: row.hoverLive
+                    onContainsMouseChanged: {
+                        if (!containsMouse && row.menuOpen)
+                            return;
+                        row.hoverPart(containsMouse ? "star" : "row");
+                    }
+                    onClicked: row.pinClicked()
+                }
+            }
 
-                        Behavior on color {
-                            NumberAnimation {
-                                duration: 200
-                            }
+            Rectangle {
+                width: 44
+                height: 44
+                radius: 22
+                color: "transparent"
+
+                Text {
+                    anchors.centerIn: parent
+                    text: "more_vert"
+                    font.family: row.iconFont
+                    font.pixelSize: 24
+                    renderType: Text.NativeRendering
+                    color: row.theme.inkDim
+                    opacity: (row.menuOpen || row.menuLit) ? 1 : 0.7
+
+                    Behavior on opacity {
+                        NumberAnimation {
+                            duration: 200
                         }
+                    }
+                }
 
-                        Text {
-                            anchors.centerIn: parent
-                            text: "close"
-                            font.family: row.iconFont
-                            font.pixelSize: 22
-                            renderType: Text.NativeRendering
-                            color: row.theme.inkDim
-                            opacity: delHover.containsMouse ? 1 : 0.7
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: row.hoverLive
+                    onContainsMouseChanged: {
+                        if (!containsMouse && row.menuOpen)
+                            return;
+                        row.hoverPart(containsMouse ? "menu" : "row");
+                    }
+                    onClicked: {
+                        row.menuOpenedAt = Date.now();
+                        row.hoverPart("menu");
+                        row.menuOpen = !row.menuOpen;
+                    }
+                }
+            }
+        }
+    }
 
-                            Behavior on opacity {
-                                NumberAnimation {
-                                    duration: 200
-                                }
+    // Overflow menu (Preview / Pin / Delete), closes on action,
+    // row-leave (via rowActive), or whenever the panel isn't in list mode.
+    Item {
+        anchors.fill: parent
+        visible: row.menuOpen && row.uiActive
+
+        // Click-away layer: any click outside the menu dismisses it
+        // (ignores taps within 350ms of opening: double-taps and bounce
+        // taps would toggle-then-dismiss otherwise).
+        MouseArea {
+            anchors.fill: parent
+            onClicked: mouse => {
+                mouse.accepted = true;
+                if (Date.now() - row.menuOpenedAt < 350)
+                    return;
+                row.menuOpen = false;
+            }
+        }
+
+        Rectangle {
+            anchors.right: parent.right
+            anchors.rightMargin: 84
+            anchors.verticalCenter: parent.verticalCenter
+            width: 150
+            height: menuCol.height + 16
+            radius: 12
+            color: row.theme.surfaceContainerHighest
+
+            Column {
+                id: menuCol
+
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.margins: 8
+                spacing: 2
+
+                Repeater {
+                    model: [{
+                        a: "preview",
+                        g: "visibility",
+                        t: "Preview"
+                    }, {
+                        a: "pin",
+                        g: "star",
+                        t: row.pinned ? "Unpin" : "Pin"
+                    }, {
+                        a: "del",
+                        g: "delete",
+                        t: "Delete"
+                    }]
+
+                    delegate: Rectangle {
+                        required property var modelData
+
+                        width: menuCol.width
+                        height: 36
+                        radius: 8
+                        color: mHover.containsMouse ? row.theme.surfaceContainerHigh : "transparent"
+
+                        Row {
+                            anchors.fill: parent
+                            anchors.leftMargin: 10
+                            spacing: 10
+
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: modelData.g
+                                font.family: row.iconFont
+                                font.pixelSize: 19
+                                renderType: Text.NativeRendering
+                                color: row.theme.inkDim
+                            }
+
+                            Text {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: modelData.t
+                                font.family: row.uiFont
+                                font.pixelSize: 14
+                                renderType: Text.NativeRendering
+                                color: row.theme.ink
                             }
                         }
 
                         MouseArea {
-                            id: delHover
+                            id: mHover
 
                             anchors.fill: parent
-                            hoverEnabled: true
-                            onClicked: row.delClicked()
+                            hoverEnabled: row.hoverLive
+                            onContainsMouseChanged: {
+                                if (containsMouse)
+                                    row.hoverPart("menu");
+                            }
+                            onClicked: {
+                                const a = modelData.a;
+                                row.menuOpen = false;
+                                if (a === "preview")
+                                    row.previewClicked();
+                                else if (a === "pin")
+                                    row.pinClicked();
+                                else
+                                    row.delClicked();
+                            }
                         }
                     }
                 }

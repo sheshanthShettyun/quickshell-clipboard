@@ -26,7 +26,7 @@ PanelWindow {
     margins.top: 6
     margins.bottom: 6
     margins.right: 6
-    implicitWidth: 400
+    implicitWidth: 480
     exclusionMode: ExclusionMode.Ignore
     focusable: true
     color: "transparent"
@@ -61,6 +61,9 @@ PanelWindow {
     // Panel-owned hover key ("h<cid>" / "p<created>") — cleared on close
     // so highlights can never stick like per-delegate containsMouse does.
     property string hoverKey: ""
+    // Master hover switch: flipped off/on across close/open to reset any
+    // frozen Qt hover state in every button area at once.
+    property bool hoverLive: true
     // UI font: Caelestia primary (loaded via FontLoader in shell.qml)
     property string uiFont: "Google Sans Flex"
     // Material Symbols, same icon language as the Caelestia shell
@@ -71,9 +74,11 @@ PanelWindow {
             win.query = "";
             win.filterKind = "all";
             win.previewTarget = null;
+            win.hoverLive = true;
             searchInput.forceActiveFocus();
         } else {
             win.hoverKey = "";
+            win.hoverLive = false;
             win.previewTarget = null;
         }
     }
@@ -391,7 +396,7 @@ PanelWindow {
                             id: refreshHover
 
                             anchors.fill: parent
-                            hoverEnabled: true
+                            hoverEnabled: win.hoverLive
                             enabled: !(win.service && win.service.loading)
                             onClicked: win.service.refresh()
                         }
@@ -429,7 +434,7 @@ PanelWindow {
                             id: closeHover
 
                             anchors.fill: parent
-                            hoverEnabled: true
+                            hoverEnabled: win.hoverLive
                             onClicked: win.requestClose()
                         }
                     }
@@ -556,6 +561,8 @@ PanelWindow {
                             width: chipLabel.width + 28
                             radius: 20
                             color: selected ? win.theme.primaryContainer : (chipHover.containsMouse ? win.theme.surfaceContainerHigh : "transparent")
+                            border.width: selected ? 1 : 0
+                            border.color: win.theme.primary
 
                             Behavior on color {
                                 NumberAnimation {
@@ -571,14 +578,14 @@ PanelWindow {
                                 font.family: win.uiFont
                                 font.pixelSize: 16
                                 renderType: Text.NativeRendering
-                                color: parent.selected ? win.theme.primary : win.theme.inkDim
+                                color: parent.selected ? win.theme.primaryContainerText : (chipHover.containsMouse ? win.theme.ink : win.theme.inkDim)
                             }
 
                             MouseArea {
                                 id: chipHover
 
                                 anchors.fill: parent
-                                hoverEnabled: true
+                                hoverEnabled: win.hoverLive
                                 onClicked: win.filterKind = modelData.k
                             }
                         }
@@ -604,6 +611,8 @@ PanelWindow {
                 visible: count > 0 && (win.filterKind === "all" || win.filterKind === "pinned")
                 clip: true
                 spacing: 6
+                cacheBuffer: 120
+                reuseItems: true
                 model: win.pinMatches()
 
                 delegate: ClipRow {
@@ -613,10 +622,18 @@ PanelWindow {
                     uiFont: win.uiFont
                     iconFont: win.iconFont
                     theme: win.theme
-                    highlighted: win.hoverKey === "p" + modelData.created
-                    onHovered: on => {
+                    uiActive: win.panelOpen && win.previewTarget === null
+                    hoverLive: win.hoverLive
+                    rowKey: "p" + modelData.created
+                    hoverKey: win.hoverKey
+                    onHoverPart: part => {
                         const k = "p" + modelData.created;
-                        win.hoverKey = on ? k : (win.hoverKey === k ? "" : win.hoverKey);
+                        if (part === "") {
+                            if (win.hoverKey === k || win.hoverKey.indexOf(k + ":") === 0)
+                                win.hoverKey = "";
+                        } else {
+                            win.hoverKey = k + ":" + part;
+                        }
                     }
                     entry: modelData.kind === "image" ? {
                         kind: "image",
@@ -632,11 +649,19 @@ PanelWindow {
                         thumb: ""
                     }
                     pinned: true
-                    onClicked: win.openPreviewPin(modelData)
+                    onClicked: {
+                        if (modelData.kind === "image") {
+                            win.pins.copyPin(modelData);
+                            win.requestClose();
+                        } else {
+                            win.openPreviewPin(modelData);
+                        }
+                    }
                     onDoubleClicked: {
                         win.pins.copyPin(modelData);
                         win.requestClose();
                     }
+                    onPreviewClicked: win.openPreviewPin(modelData)
                     onPinClicked: win.unpin(modelData)
                     onDelClicked: win.unpin(modelData)
                 }
@@ -669,6 +694,8 @@ PanelWindow {
                 clip: true
                 spacing: 6
                 visible: win.filterKind !== "pinned"
+                cacheBuffer: 240
+                reuseItems: true
                 model: win.histMatches()
 
                 delegate: ClipRow {
@@ -678,18 +705,34 @@ PanelWindow {
                     uiFont: win.uiFont
                     iconFont: win.iconFont
                     theme: win.theme
-                    highlighted: win.hoverKey === "h" + modelData.cid
-                    onHovered: on => {
+                    uiActive: win.panelOpen && win.previewTarget === null
+                    hoverLive: win.hoverLive
+                    rowKey: "h" + modelData.cid
+                    hoverKey: win.hoverKey
+                    onHoverPart: part => {
                         const k = "h" + modelData.cid;
-                        win.hoverKey = on ? k : (win.hoverKey === k ? "" : win.hoverKey);
+                        if (part === "") {
+                            if (win.hoverKey === k || win.hoverKey.indexOf(k + ":") === 0)
+                                win.hoverKey = "";
+                        } else {
+                            win.hoverKey = k + ":" + part;
+                        }
                     }
                     entry: modelData
                     pinned: false
-                    onClicked: win.openPreviewHistory(modelData)
+                    onClicked: {
+                        if (modelData.isImage) {
+                            win.service.copyEntry(modelData);
+                            win.requestClose();
+                        } else {
+                            win.openPreviewHistory(modelData);
+                        }
+                    }
                     onDoubleClicked: {
                         win.service.copyEntry(modelData);
                         win.requestClose();
                     }
+                    onPreviewClicked: win.openPreviewHistory(modelData)
                     onPinClicked: win.pinEntry(modelData)
                     onDelClicked: win.service.deleteEntry(modelData)
                 }
@@ -743,7 +786,7 @@ PanelWindow {
                         id: clearHover
 
                         anchors.fill: parent
-                        hoverEnabled: true
+                        hoverEnabled: win.hoverLive
                         onClicked: win.service.wipeHistory()
                     }
                 }
@@ -796,7 +839,7 @@ PanelWindow {
                                 id: backHover
 
                                 anchors.fill: parent
-                                hoverEnabled: true
+                                hoverEnabled: win.hoverLive
                                 onClicked: win.previewBack()
                             }
                         }
@@ -892,7 +935,7 @@ PanelWindow {
                                 id: copyHover
 
                                 anchors.fill: parent
-                                hoverEnabled: true
+                                hoverEnabled: win.hoverLive
                                 onClicked: win.previewCopy()
                             }
                         }
@@ -924,7 +967,7 @@ PanelWindow {
                                 id: pinBtnHover
 
                                 anchors.fill: parent
-                                hoverEnabled: true
+                                hoverEnabled: win.hoverLive
                                 onClicked: win.previewPinToggle()
                             }
                         }
@@ -956,7 +999,7 @@ PanelWindow {
                                 id: delBtnHover
 
                                 anchors.fill: parent
-                                hoverEnabled: true
+                                hoverEnabled: win.hoverLive
                                 onClicked: win.previewDelete()
                             }
                         }
