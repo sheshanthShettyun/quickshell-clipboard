@@ -650,12 +650,8 @@ PanelWindow {
                     }
                     pinned: true
                     onClicked: {
-                        if (modelData.kind === "image") {
-                            win.pins.copyPin(modelData);
-                            win.requestClose();
-                        } else {
-                            win.openPreviewPin(modelData);
-                        }
+                        win.pins.copyPin(modelData);
+                        win.requestClose();
                     }
                     onDoubleClicked: {
                         win.pins.copyPin(modelData);
@@ -721,12 +717,8 @@ PanelWindow {
                     entry: modelData
                     pinned: false
                     onClicked: {
-                        if (modelData.isImage) {
-                            win.service.copyEntry(modelData);
-                            win.requestClose();
-                        } else {
-                            win.openPreviewHistory(modelData);
-                        }
+                        win.service.copyEntry(modelData);
+                        win.requestClose();
                     }
                     onDoubleClicked: {
                         win.service.copyEntry(modelData);

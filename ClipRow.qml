@@ -59,20 +59,6 @@ Item {
             row.menuOpen = false;
     }
 
-    Timer {
-        id: clickTimer
-
-        interval: 260
-        onTriggered: {
-            row.holdUsed = false;
-            // A tap that just opened the menu must never also activate
-            // the row (double delivery / bounce taps).
-            if (row.menuOpen && Date.now() - row.menuOpenedAt < 500)
-                return;
-            row.clicked();
-        }
-    }
-
     Rectangle {
         id: bg
 
@@ -148,9 +134,16 @@ Item {
         anchors.fill: parent
         hoverEnabled: row.hoverLive
         pressAndHoldInterval: 400
-        onClicked: clickTimer.restart()
+        onClicked: {
+            if (row.holdUsed) {
+                row.holdUsed = false;
+                return;
+            }
+            if (row.menuOpen && Date.now() - row.menuOpenedAt < 500)
+                return;
+            row.clicked();
+        }
         onDoubleClicked: {
-            clickTimer.stop();
             row.holdUsed = false;
             if (row.menuOpen && Date.now() - row.menuOpenedAt < 500)
                 return;
