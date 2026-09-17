@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 
@@ -560,13 +561,19 @@ PanelWindow {
                             height: 40
                             width: chipLabel.width + 28
                             radius: 20
-                            color: selected ? win.theme.primaryContainer : (chipHover.containsMouse ? win.theme.surfaceContainerHigh : "transparent")
-                            border.width: selected ? 1 : 0
-                            border.color: win.theme.primary
+                            color: selected ? win.theme.primaryContainer : win.theme.surfaceContainerHighest
+                            border.width: 0
 
-                            Behavior on color {
-                                NumberAnimation {
-                                    duration: 200
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: parent.radius
+                                color: win.theme.ink
+                                opacity: !parent.selected && chipHover.containsMouse ? 0.08 : 0
+
+                                Behavior on opacity {
+                                    NumberAnimation {
+                                        duration: 160
+                                    }
                                 }
                             }
 
@@ -578,7 +585,7 @@ PanelWindow {
                                 font.family: win.uiFont
                                 font.pixelSize: 16
                                 renderType: Text.NativeRendering
-                                color: parent.selected ? win.theme.primaryContainerText : (chipHover.containsMouse ? win.theme.ink : win.theme.inkDim)
+                                color: parent.selected ? win.theme.primaryContainerText : win.theme.ink
                             }
 
                             MouseArea {
@@ -614,6 +621,30 @@ PanelWindow {
                 cacheBuffer: 120
                 reuseItems: true
                 model: win.pinMatches()
+
+                ScrollBar.vertical: ScrollBar {
+                    policy: ScrollBar.AsNeeded
+                    interactive: true
+                    width: 8
+                    opacity: hovered || pressed ? 1 : 0
+
+                    Behavior on opacity {
+                        NumberAnimation {
+                            duration: 160
+                        }
+                    }
+
+                    contentItem: Rectangle {
+                        implicitWidth: 4
+                        radius: 4
+                        color: win.theme.inkDim
+                        opacity: 0.65
+                    }
+
+                    background: Rectangle {
+                        color: "transparent"
+                    }
+                }
 
                 delegate: ClipRow {
                     required property var modelData
@@ -693,6 +724,30 @@ PanelWindow {
                 cacheBuffer: 240
                 reuseItems: true
                 model: win.histMatches()
+
+                ScrollBar.vertical: ScrollBar {
+                    policy: ScrollBar.AsNeeded
+                    interactive: true
+                    width: 8
+                    opacity: hovered || pressed ? 1 : 0
+
+                    Behavior on opacity {
+                        NumberAnimation {
+                            duration: 160
+                        }
+                    }
+
+                    contentItem: Rectangle {
+                        implicitWidth: 4
+                        radius: 4
+                        color: win.theme.inkDim
+                        opacity: 0.65
+                    }
+
+                    background: Rectangle {
+                        color: "transparent"
+                    }
+                }
 
                 delegate: ClipRow {
                     required property var modelData
