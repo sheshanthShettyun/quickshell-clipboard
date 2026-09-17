@@ -526,204 +526,171 @@ PanelWindow {
                 flickableDirection: Flickable.HorizontalFlick
                 boundsBehavior: Flickable.StopAtBounds
 
-                Row {
-                    id: chipRow
+                Item {
+                    id: chipContent
 
+                    width: chipRow.width
                     height: 42
-                    spacing: 8
 
-                    Repeater {
-                        model: [{
-                            k: "all",
-                            t: "All"
-                        }, {
-                            k: "text",
-                            t: "Text"
-                        }, {
-                            k: "images",
-                            t: "Images"
-                        }, {
-                            k: "links",
-                            t: "Links"
-                        }, {
-                            k: "code",
-                            t: "Code"
-                        }, {
-                            k: "pinned",
-                            t: "Pinned"
-                        }]
+                    function activeChip(): var {
+                        for (let i = 0; i < chipRepeater.count; i++) {
+                            const item = chipRepeater.itemAt(i);
+                            if (item && item.selected)
+                                return item;
+                        }
+                        return null;
+                    }
 
-                        delegate: Rectangle {
-                            required property var modelData
+                    Rectangle {
+                        id: activePill
 
-                            readonly property bool selected: win.filterKind === modelData.k
+                        readonly property var targetChip: chipContent.activeChip()
 
-                            height: 40
-                            width: chipLabel.width + 28
-                            radius: 20
-                            color: selected ? win.theme.primaryContainer : win.theme.surfaceContainerHighest
-                            border.width: 0
+                        x: targetChip ? targetChip.x : 0
+                        y: targetChip ? targetChip.y : 0
+                        width: targetChip ? targetChip.width : 0
+                        height: 40
+                        radius: 20
+                        color: win.theme.primaryContainer
+                        visible: width > 0
+                        z: 0
 
-                            Rectangle {
-                                anchors.fill: parent
-                                radius: parent.radius
-                                color: win.theme.ink
-                                opacity: !parent.selected && chipHover.containsMouse ? 0.08 : 0
+                        Rectangle {
+                            anchors.fill: parent
+                            anchors.margins: -2
+                            radius: parent.radius + 2
+                            color: win.theme.primary
+                            opacity: 0.12
+                        }
 
-                                Behavior on opacity {
-                                    NumberAnimation {
-                                        duration: 160
+                        Behavior on x {
+                            SpringAnimation {
+                                spring: 4.6
+                                damping: 0.42
+                                epsilon: 0.25
+                            }
+                        }
+
+                        Behavior on width {
+                            SpringAnimation {
+                                spring: 4.6
+                                damping: 0.42
+                                epsilon: 0.25
+                            }
+                        }
+                    }
+
+                    Row {
+                        id: chipRow
+
+                        height: 42
+                        spacing: 8
+                        z: 1
+
+                        Repeater {
+                            id: chipRepeater
+
+                            model: [{
+                                k: "all",
+                                t: "All"
+                            }, {
+                                k: "text",
+                                t: "Text"
+                            }, {
+                                k: "images",
+                                t: "Images"
+                            }, {
+                                k: "links",
+                                t: "Links"
+                            }, {
+                                k: "code",
+                                t: "Code"
+                            }, {
+                                k: "pinned",
+                                t: "Pinned"
+                            }]
+
+                            delegate: Item {
+                                required property var modelData
+
+                                readonly property bool selected: win.filterKind === modelData.k
+                                readonly property bool hovered: chipMouse.containsMouse
+
+                                height: 40
+                                width: chipLabel.width + 28
+                                scale: chipMouse.pressed ? 0.985 : (hovered ? 1.02 : 1)
+                                y: hovered && !chipMouse.pressed ? -1 : 0
+                                transformOrigin: Item.Center
+
+                                Behavior on scale {
+                                    SpringAnimation {
+                                        spring: 5.2
+                                        damping: 0.55
+                                        epsilon: 0.001
                                     }
                                 }
-                            }
 
-                            Text {
-                                id: chipLabel
+                                Behavior on y {
+                                    SpringAnimation {
+                                        spring: 5.2
+                                        damping: 0.55
+                                        epsilon: 0.05
+                                    }
+                                }
 
-                                anchors.centerIn: parent
-                                text: modelData.t + " · " + win.kindCount(modelData.k)
-                                font.family: win.uiFont
-                                font.pixelSize: 16
-                                renderType: Text.NativeRendering
-                                color: parent.selected ? win.theme.primaryContainerText : win.theme.ink
-                            }
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: 20
+                                    color: win.theme.surfaceContainerHighest
+                                    opacity: parent.selected ? 0 : 1
+                                }
 
-                            MouseArea {
-                                id: chipHover
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: 20
+                                    color: win.theme.ink
+                                    opacity: !parent.selected && parent.hovered ? 0.08 : 0
 
-                                anchors.fill: parent
-                                hoverEnabled: win.hoverLive
-                                onClicked: win.filterKind = modelData.k
+                                    Behavior on opacity {
+                                        NumberAnimation {
+                                            duration: 160
+                                        }
+                                    }
+                                }
+
+                                Text {
+                                    id: chipLabel
+
+                                    anchors.centerIn: parent
+                                    text: modelData.t + " · " + win.kindCount(modelData.k)
+                                    font.family: win.uiFont
+                                    font.pixelSize: 16
+                                    renderType: Text.NativeRendering
+                                    color: parent.selected ? win.theme.primaryContainerText : win.theme.ink
+                                }
+
+                                MouseArea {
+                                    id: chipMouse
+
+                                    anchors.fill: parent
+                                    hoverEnabled: win.hoverLive
+                                    onClicked: win.filterKind = modelData.k
+                                }
                             }
                         }
                     }
                 }
             }
 
-            // Pinned section
-            Text {
-                text: "Pinned (" + win.pinMatches().length + ")"
-                color: win.theme.inkDim
-                font.family: win.uiFont
-                renderType: Text.NativeRendering
-                font.pixelSize: 20
-                visible: win.filterKind === "all" || win.filterKind === "pinned"
-            }
-
-            ListView {
-                id: pinList
-
-                width: parent.width
-                height: win.filterKind === "pinned" ? parent.height - y - 56 : Math.min(366, count * 122)
-                visible: count > 0 && (win.filterKind === "all" || win.filterKind === "pinned")
-                clip: true
-                spacing: 6
-                cacheBuffer: 120
-                reuseItems: true
-                model: win.pinMatches()
-
-                ScrollBar.vertical: ScrollBar {
-                    policy: ScrollBar.AsNeeded
-                    interactive: true
-                    width: 8
-                    opacity: hovered || pressed ? 1 : 0
-
-                    Behavior on opacity {
-                        NumberAnimation {
-                            duration: 160
-                        }
-                    }
-
-                    contentItem: Rectangle {
-                        implicitWidth: 4
-                        radius: 4
-                        color: win.theme.inkDim
-                        opacity: 0.65
-                    }
-
-                    background: Rectangle {
-                        color: "transparent"
-                    }
-                }
-
-                delegate: ClipRow {
-                    required property var modelData
-
-                    width: pinList.width
-                    uiFont: win.uiFont
-                    iconFont: win.iconFont
-                    theme: win.theme
-                    uiActive: win.panelOpen && win.previewTarget === null
-                    hoverLive: win.hoverLive
-                    rowKey: "p" + modelData.created
-                    hoverKey: win.hoverKey
-                    onHoverPart: part => {
-                        const k = "p" + modelData.created;
-                        if (part === "") {
-                            if (win.hoverKey === k || win.hoverKey.indexOf(k + ":") === 0)
-                                win.hoverKey = "";
-                        } else {
-                            win.hoverKey = k + ":" + part;
-                        }
-                    }
-                    entry: modelData.kind === "image" ? {
-                        kind: "image",
-                        title: modelData.title,
-                        sub: modelData.sub,
-                        isImage: true,
-                        thumb: modelData.path
-                    } : {
-                        kind: "text",
-                        title: modelData.label,
-                        sub: "",
-                        isImage: false,
-                        thumb: ""
-                    }
-                    pinned: true
-                    onClicked: {
-                        win.pins.copyPin(modelData);
-                        win.requestClose();
-                    }
-                    onDoubleClicked: {
-                        win.pins.copyPin(modelData);
-                        win.requestClose();
-                    }
-                    onPreviewClicked: win.openPreviewPin(modelData)
-                    onPinClicked: win.unpin(modelData)
-                    onDelClicked: win.unpin(modelData)
-                }
-            }
-
-            Text {
-                text: "No pinned items — hover a row and hit ☆"
-                color: win.theme.inkDim
-                font.family: win.uiFont
-                renderType: Text.NativeRendering
-                font.pixelSize: 16
-                visible: win.pinMatches().length === 0 && (win.filterKind === "all" || win.filterKind === "pinned")
-            }
-
-            // History section
-            Text {
-                text: "History (" + win.histMatches().length + ")"
-                color: win.theme.inkDim
-                font.family: win.uiFont
-                renderType: Text.NativeRendering
-                font.pixelSize: 20
-                visible: win.filterKind !== "pinned"
-            }
-
-            ListView {
-                id: histList
+            Flickable {
+                id: mainScroll
 
                 width: parent.width
                 height: parent.height - y - 56
                 clip: true
-                spacing: 6
-                visible: win.filterKind !== "pinned"
-                cacheBuffer: 240
-                reuseItems: true
-                model: win.histMatches()
+                contentHeight: scrollContent.height
+                boundsBehavior: Flickable.StopAtBounds
+                flickableDirection: Flickable.VerticalFlick
 
                 ScrollBar.vertical: ScrollBar {
                     policy: ScrollBar.AsNeeded
@@ -749,39 +716,133 @@ PanelWindow {
                     }
                 }
 
-                delegate: ClipRow {
-                    required property var modelData
+                Column {
+                    id: scrollContent
 
-                    width: histList.width
-                    uiFont: win.uiFont
-                    iconFont: win.iconFont
-                    theme: win.theme
-                    uiActive: win.panelOpen && win.previewTarget === null
-                    hoverLive: win.hoverLive
-                    rowKey: "h" + modelData.cid
-                    hoverKey: win.hoverKey
-                    onHoverPart: part => {
-                        const k = "h" + modelData.cid;
-                        if (part === "") {
-                            if (win.hoverKey === k || win.hoverKey.indexOf(k + ":") === 0)
-                                win.hoverKey = "";
-                        } else {
-                            win.hoverKey = k + ":" + part;
+                    width: mainScroll.width - 12
+                    spacing: 6
+
+                    Text {
+                        width: parent.width
+                        text: "Pinned (" + win.pinMatches().length + ")"
+                        color: win.theme.inkDim
+                        font.family: win.uiFont
+                        renderType: Text.NativeRendering
+                        font.pixelSize: 20
+                        visible: win.filterKind === "all" || win.filterKind === "pinned"
+                    }
+
+                    Repeater {
+                        model: (win.filterKind === "all" || win.filterKind === "pinned") ? win.pinMatches() : []
+
+                        delegate: ClipRow {
+                            required property var modelData
+
+                            width: scrollContent.width
+                            height: implicitHeight
+                            uiFont: win.uiFont
+                            iconFont: win.iconFont
+                            theme: win.theme
+                            uiActive: win.panelOpen && win.previewTarget === null
+                            hoverLive: win.hoverLive
+                            rowKey: "p" + modelData.created
+                            hoverKey: win.hoverKey
+                            onHoverPart: part => {
+                                const k = "p" + modelData.created;
+                                if (part === "") {
+                                    if (win.hoverKey === k || win.hoverKey.indexOf(k + ":") === 0)
+                                        win.hoverKey = "";
+                                } else {
+                                    win.hoverKey = k + ":" + part;
+                                }
+                            }
+                            entry: modelData.kind === "image" ? {
+                                kind: "image",
+                                title: modelData.title,
+                                sub: modelData.sub,
+                                isImage: true,
+                                thumb: modelData.path
+                            } : {
+                                kind: "text",
+                                title: modelData.label,
+                                sub: "",
+                                isImage: false,
+                                thumb: ""
+                            }
+                            pinned: true
+                            onClicked: {
+                                win.pins.copyPin(modelData);
+                                win.requestClose();
+                            }
+                            onDoubleClicked: {
+                                win.pins.copyPin(modelData);
+                                win.requestClose();
+                            }
+                            onPreviewClicked: win.openPreviewPin(modelData)
+                            onPinClicked: win.unpin(modelData)
+                            onDelClicked: win.unpin(modelData)
                         }
                     }
-                    entry: modelData
-                    pinned: false
-                    onClicked: {
-                        win.service.copyEntry(modelData);
-                        win.requestClose();
+
+                    Text {
+                        width: parent.width
+                        text: "No pinned items — hover a row and hit ☆"
+                        color: win.theme.inkDim
+                        font.family: win.uiFont
+                        renderType: Text.NativeRendering
+                        font.pixelSize: 16
+                        visible: win.pinMatches().length === 0 && (win.filterKind === "all" || win.filterKind === "pinned")
                     }
-                    onDoubleClicked: {
-                        win.service.copyEntry(modelData);
-                        win.requestClose();
+
+                    Text {
+                        width: parent.width
+                        text: "History (" + win.histMatches().length + ")"
+                        color: win.theme.inkDim
+                        font.family: win.uiFont
+                        renderType: Text.NativeRendering
+                        font.pixelSize: 20
+                        visible: win.filterKind !== "pinned"
                     }
-                    onPreviewClicked: win.openPreviewHistory(modelData)
-                    onPinClicked: win.pinEntry(modelData)
-                    onDelClicked: win.service.deleteEntry(modelData)
+
+                    Repeater {
+                        model: win.filterKind !== "pinned" ? win.histMatches() : []
+
+                        delegate: ClipRow {
+                            required property var modelData
+
+                            width: scrollContent.width
+                            height: implicitHeight
+                            uiFont: win.uiFont
+                            iconFont: win.iconFont
+                            theme: win.theme
+                            uiActive: win.panelOpen && win.previewTarget === null
+                            hoverLive: win.hoverLive
+                            rowKey: "h" + modelData.cid
+                            hoverKey: win.hoverKey
+                            onHoverPart: part => {
+                                const k = "h" + modelData.cid;
+                                if (part === "") {
+                                    if (win.hoverKey === k || win.hoverKey.indexOf(k + ":") === 0)
+                                        win.hoverKey = "";
+                                } else {
+                                    win.hoverKey = k + ":" + part;
+                                }
+                            }
+                            entry: modelData
+                            pinned: false
+                            onClicked: {
+                                win.service.copyEntry(modelData);
+                                win.requestClose();
+                            }
+                            onDoubleClicked: {
+                                win.service.copyEntry(modelData);
+                                win.requestClose();
+                            }
+                            onPreviewClicked: win.openPreviewHistory(modelData)
+                            onPinClicked: win.pinEntry(modelData)
+                            onDelClicked: win.service.deleteEntry(modelData)
+                        }
+                    }
                 }
             }
 
