@@ -40,6 +40,13 @@ ShellRoot {
         id: clipboardSvc
     }
 
+    // Google Sans Flex — same primary UI font file the Caelestia shell
+    // loads (its GSFLoader); kept as an absolute path since shellPath
+    // differs per quickshell config.
+    FontLoader {
+        source: "/home/sriyaan/.config/quickshell/caelestia/assets/google-sans-flex/GoogleSansFlex-VariableFont_GRAD,ROND,opsz,slnt,wdth,wght.ttf"
+    }
+
     PinsStore {
         id: pinsStore
     }

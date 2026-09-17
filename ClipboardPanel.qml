@@ -23,13 +23,31 @@ PanelWindow {
     anchors.top: true
     anchors.bottom: true
     anchors.right: true
-    margins.top: 12
-    margins.bottom: 12
-    margins.right: 12
+    margins.top: 6
+    margins.bottom: 6
+    margins.right: 6
     implicitWidth: 400
     exclusionMode: ExclusionMode.Ignore
     focusable: true
     color: "transparent"
+
+    // Open progress 0..1: full-width slide with a bottle-drop jiggle
+    // (OutElastic overshoot + settle, fixed 750ms). No fade.
+    // Visible persists while the animation is running.
+    property real openProg: 0
+
+    Behavior on openProg {
+        // Entrance-only in effect: close hides the window instantly
+        // (see visible), the spring-back runs invisibly underneath.
+        NumberAnimation {
+            duration: 750
+            easing.type: Easing.OutElastic
+            easing.amplitude: 1.0
+            easing.period: 0.35
+        }
+    }
+
+    onPanelOpenChanged: win.openProg = win.panelOpen ? 1 : 0
 
     property string query: ""
     // Category filter: all | text | images | links | code | pinned
@@ -43,8 +61,8 @@ PanelWindow {
     // Panel-owned hover key ("h<cid>" / "p<created>") — cleared on close
     // so highlights can never stick like per-delegate containsMouse does.
     property string hoverKey: ""
-    // UI font, matches the Caelestia shell bars/panels — change here to restyle
-    property string uiFont: "Rubik"
+    // UI font: Caelestia primary (loaded via FontLoader in shell.qml)
+    property string uiFont: "Google Sans Flex"
     // Material Symbols, same icon language as the Caelestia shell
     property string iconFont: "Material Symbols Rounded"
 
@@ -300,21 +318,20 @@ PanelWindow {
         color: win.theme.surfaceContainerLow
         radius: 20
 
-        // Slide-and-fade entrance, mirroring the sidebar drawer motion
-        x: win.panelOpen ? 0 : 40
-        opacity: win.panelOpen ? 1 : 0
+        // Square off the right edge so the panel reads as connected to
+        // the screen (left corners stay rounded). Same color: no seam.
+        Rectangle {
+            width: 20
+            anchors.top: parent.top
+            anchors.bottom: parent.bottom
+            anchors.right: parent.right
+            color: win.theme.surfaceContainerLow
+        }
 
-        Behavior on x {
-            NumberAnimation {
-                duration: 250
-                easing.type: Easing.OutCubic
-            }
-        }
-        Behavior on opacity {
-            NumberAnimation {
-                duration: 200
-            }
-        }
+        // Slide driven by the spring above (no fade — the window edge
+        // clips the panel while it travels in from off-screen)
+        x: (1 - win.openProg) * win.implicitWidth
+        opacity: 1
 
         Column {
             anchors.fill: parent
@@ -324,7 +341,7 @@ PanelWindow {
             // Header
             Item {
                 width: parent.width
-                height: 32
+                height: 40
 
                 Text {
                     anchors.left: parent.left
@@ -333,7 +350,7 @@ PanelWindow {
                     color: win.theme.ink
                     font.family: win.uiFont
                     renderType: Text.NativeRendering
-                    font.pixelSize: 16
+                    font.pixelSize: 20
                     font.bold: true
                 }
 
@@ -343,14 +360,14 @@ PanelWindow {
                     spacing: 4
 
                     Rectangle {
-                        width: 32
-                        height: 32
-                        radius: 16
+                        width: 40
+                        height: 40
+                        radius: 20
                         color: refreshHover.containsMouse ? win.theme.surfaceContainerHigh : "transparent"
 
                         Behavior on color {
                             NumberAnimation {
-                                duration: 120
+                                duration: 200
                             }
                         }
 
@@ -358,14 +375,14 @@ PanelWindow {
                             anchors.centerIn: parent
                             text: "refresh"
                             font.family: win.iconFont
-                            font.pixelSize: 19
+                            font.pixelSize: 22
                             renderType: Text.NativeRendering
                             color: win.theme.primary
                             opacity: (win.service && win.service.loading) ? 0.5 : (refreshHover.containsMouse ? 1 : 0.8)
 
                             Behavior on opacity {
                                 NumberAnimation {
-                                    duration: 120
+                                    duration: 200
                                 }
                             }
                         }
@@ -381,14 +398,14 @@ PanelWindow {
                     }
 
                     Rectangle {
-                        width: 32
-                        height: 32
-                        radius: 16
+                        width: 40
+                        height: 40
+                        radius: 20
                         color: closeHover.containsMouse ? win.theme.surfaceContainerHigh : "transparent"
 
                         Behavior on color {
                             NumberAnimation {
-                                duration: 120
+                                duration: 200
                             }
                         }
 
@@ -396,14 +413,14 @@ PanelWindow {
                             anchors.centerIn: parent
                             text: "close"
                             font.family: win.iconFont
-                            font.pixelSize: 19
+                            font.pixelSize: 22
                             renderType: Text.NativeRendering
                             color: win.theme.inkDim
                             opacity: closeHover.containsMouse ? 1 : 0.8
 
                             Behavior on opacity {
                                 NumberAnimation {
-                                    duration: 120
+                                    duration: 200
                                 }
                             }
                         }
@@ -422,31 +439,31 @@ PanelWindow {
             // Search (pill with icon + accent focus ring)
             Rectangle {
                 width: parent.width
-                height: 42
-                radius: 21
+                height: 54
+                radius: 27
                 color: win.theme.surfaceContainer
                 border.color: win.theme.primary
                 border.width: searchInput.activeFocus ? 1 : 0
 
                 Behavior on border.width {
                     NumberAnimation {
-                        duration: 120
+                        duration: 200
                     }
                 }
 
                 Text {
                     anchors.left: parent.left
-                    anchors.leftMargin: 13
+                    anchors.leftMargin: 16
                     anchors.verticalCenter: parent.verticalCenter
                     text: "search"
                     font.family: win.iconFont
-                    font.pixelSize: 20
+                    font.pixelSize: 24
                     renderType: Text.NativeRendering
                     color: searchInput.activeFocus ? win.theme.primary : win.theme.inkDim
 
                     Behavior on color {
                         NumberAnimation {
-                            duration: 120
+                            duration: 200
                         }
                     }
                 }
@@ -455,25 +472,33 @@ PanelWindow {
                     id: searchInput
 
                     anchors.fill: parent
-                    anchors.leftMargin: 42
-                    anchors.rightMargin: 14
+                    anchors.leftMargin: 54
+                    anchors.rightMargin: 16
                     anchors.topMargin: 10
                     anchors.bottomMargin: 10
                     verticalAlignment: TextInput.AlignVCenter
                     color: win.theme.ink
                     font.family: win.uiFont
                     renderType: TextInput.NativeRendering
-                    font.pixelSize: 14
+                    font.pixelSize: 19
                     text: win.query
                     onTextChanged: win.query = text
                     Keys.onReturnPressed: win.copyFirst()
                     Keys.onEnterPressed: win.copyFirst()
+                    // Window-level Shortcut doesn't fire on layer-shell;
+                    // handle Esc where focus actually lives.
+                    Keys.onEscapePressed: {
+                        if (win.previewTarget)
+                            win.previewBack();
+                        else
+                            win.requestClose();
+                    }
                 }
 
                 Text {
                     anchors.fill: parent
-                    anchors.leftMargin: 42
-                    anchors.rightMargin: 14
+                    anchors.leftMargin: 54
+                    anchors.rightMargin: 16
                     anchors.topMargin: 10
                     anchors.bottomMargin: 10
                     verticalAlignment: Text.AlignVCenter
@@ -481,7 +506,7 @@ PanelWindow {
                     color: win.theme.inkDim
                     font.family: win.uiFont
                     renderType: Text.NativeRendering
-                    font.pixelSize: 14
+                    font.pixelSize: 19
                     visible: searchInput.displayText === ""
                 }
             }
@@ -489,7 +514,7 @@ PanelWindow {
             // Category chips
             Flickable {
                 width: parent.width
-                height: 32
+                height: 42
                 contentWidth: chipRow.width
                 clip: true
                 flickableDirection: Flickable.HorizontalFlick
@@ -498,8 +523,8 @@ PanelWindow {
                 Row {
                     id: chipRow
 
-                    height: 32
-                    spacing: 6
+                    height: 42
+                    spacing: 8
 
                     Repeater {
                         model: [{
@@ -527,14 +552,14 @@ PanelWindow {
 
                             readonly property bool selected: win.filterKind === modelData.k
 
-                            height: 30
-                            width: chipLabel.width + 24
-                            radius: 15
+                            height: 40
+                            width: chipLabel.width + 28
+                            radius: 20
                             color: selected ? win.theme.primaryContainer : (chipHover.containsMouse ? win.theme.surfaceContainerHigh : "transparent")
 
                             Behavior on color {
                                 NumberAnimation {
-                                    duration: 120
+                                    duration: 200
                                 }
                             }
 
@@ -544,7 +569,7 @@ PanelWindow {
                                 anchors.centerIn: parent
                                 text: modelData.t + " · " + win.kindCount(modelData.k)
                                 font.family: win.uiFont
-                                font.pixelSize: 12
+                                font.pixelSize: 16
                                 renderType: Text.NativeRendering
                                 color: parent.selected ? win.theme.primary : win.theme.inkDim
                             }
@@ -567,7 +592,7 @@ PanelWindow {
                 color: win.theme.inkDim
                 font.family: win.uiFont
                 renderType: Text.NativeRendering
-                font.pixelSize: 15
+                font.pixelSize: 20
                 visible: win.filterKind === "all" || win.filterKind === "pinned"
             }
 
@@ -575,7 +600,7 @@ PanelWindow {
                 id: pinList
 
                 width: parent.width
-                height: win.filterKind === "pinned" ? parent.height - y - 48 : Math.min(282, count * 94)
+                height: win.filterKind === "pinned" ? parent.height - y - 56 : Math.min(366, count * 122)
                 visible: count > 0 && (win.filterKind === "all" || win.filterKind === "pinned")
                 clip: true
                 spacing: 6
@@ -622,7 +647,7 @@ PanelWindow {
                 color: win.theme.inkDim
                 font.family: win.uiFont
                 renderType: Text.NativeRendering
-                font.pixelSize: 12
+                font.pixelSize: 16
                 visible: win.pinMatches().length === 0 && (win.filterKind === "all" || win.filterKind === "pinned")
             }
 
@@ -632,7 +657,7 @@ PanelWindow {
                 color: win.theme.inkDim
                 font.family: win.uiFont
                 renderType: Text.NativeRendering
-                font.pixelSize: 15
+                font.pixelSize: 20
                 visible: win.filterKind !== "pinned"
             }
 
@@ -640,7 +665,7 @@ PanelWindow {
                 id: histList
 
                 width: parent.width
-                height: parent.height - y - 48
+                height: parent.height - y - 56
                 clip: true
                 spacing: 6
                 visible: win.filterKind !== "pinned"
@@ -673,19 +698,19 @@ PanelWindow {
             // Bottom action bar (mirrors the sidebar's bottom action button)
             Item {
                 width: parent.width
-                height: 36
+                height: 44
 
                 Rectangle {
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
-                    width: clearRow.width + 24
-                    height: 30
-                    radius: 15
+                    width: clearRow.width + 28
+                    height: 38
+                    radius: 19
                     color: clearHover.containsMouse ? win.theme.surfaceContainerHigh : "transparent"
 
                     Behavior on color {
                         NumberAnimation {
-                            duration: 120
+                            duration: 200
                         }
                     }
 
@@ -699,7 +724,7 @@ PanelWindow {
                             anchors.verticalCenter: parent.verticalCenter
                             text: "delete_sweep"
                             font.family: win.iconFont
-                            font.pixelSize: 17
+                            font.pixelSize: 22
                             renderType: Text.NativeRendering
                             color: win.theme.inkDim
                         }
@@ -710,7 +735,7 @@ PanelWindow {
                             color: win.theme.inkDim
                             font.family: win.uiFont
                             renderType: Text.NativeRendering
-                            font.pixelSize: 12
+                            font.pixelSize: 16
                         }
                     }
 
@@ -742,19 +767,19 @@ PanelWindow {
 
                     Item {
                         width: parent.width
-                        height: 32
+                        height: 40
 
                         Rectangle {
-                            width: 32
-                            height: 32
+                            width: 40
+                            height: 40
                             anchors.left: parent.left
                             anchors.verticalCenter: parent.verticalCenter
-                            radius: 16
+                            radius: 20
                             color: backHover.containsMouse ? win.theme.surfaceContainerHigh : "transparent"
 
                             Behavior on color {
                                 NumberAnimation {
-                                    duration: 120
+                                    duration: 200
                                 }
                             }
 
@@ -762,7 +787,7 @@ PanelWindow {
                                 anchors.centerIn: parent
                                 text: "chevron_left"
                                 font.family: win.iconFont
-                                font.pixelSize: 22
+                                font.pixelSize: 26
                                 renderType: Text.NativeRendering
                                 color: win.theme.ink
                             }
@@ -784,7 +809,7 @@ PanelWindow {
                             color: win.theme.ink
                             font.family: win.uiFont
                             renderType: Text.NativeRendering
-                            font.pixelSize: 14
+                            font.pixelSize: 19
                             font.bold: true
                         }
                     }
@@ -795,13 +820,13 @@ PanelWindow {
                         color: win.theme.inkDim
                         font.family: win.uiFont
                         renderType: Text.NativeRendering
-                        font.pixelSize: 11
+                        font.pixelSize: 14
                         elide: Text.ElideRight
                     }
 
                     Item {
                         width: parent.width
-                        height: parent.height - y - 52
+                        height: parent.height - y - 60
 
                         Flickable {
                             anchors.fill: parent
@@ -819,7 +844,7 @@ PanelWindow {
                                 color: win.theme.ink
                                 font.family: win.uiFont
                                 renderType: Text.NativeRendering
-                                font.pixelSize: 13
+                                font.pixelSize: 24
                                 wrapMode: Text.Wrap
                                 textFormat: Text.PlainText
                             }
@@ -837,18 +862,18 @@ PanelWindow {
 
                     Row {
                         width: parent.width
-                        height: 40
-                        spacing: 8
+                        height: 48
+                        spacing: 10
 
                         Rectangle {
-                            width: copyLabel.width + 28
-                            height: 36
-                            radius: 18
+                            width: copyLabel.width + 32
+                            height: 46
+                            radius: 23
                             color: copyHover.containsMouse ? win.theme.primary : win.theme.primaryContainer
 
                             Behavior on color {
                                 NumberAnimation {
-                                    duration: 120
+                                    duration: 200
                                 }
                             }
 
@@ -858,7 +883,7 @@ PanelWindow {
                                 anchors.centerIn: parent
                                 text: "Copy"
                                 font.family: win.uiFont
-                                font.pixelSize: 13
+                                font.pixelSize: 24
                                 renderType: Text.NativeRendering
                                 color: copyHover.containsMouse ? win.theme.surfaceContainerLow : win.theme.primary
                             }
@@ -873,14 +898,14 @@ PanelWindow {
                         }
 
                         Rectangle {
-                            width: pinLabel.width + 28
-                            height: 36
-                            radius: 18
+                            width: pinLabel.width + 32
+                            height: 46
+                            radius: 23
                             color: pinBtnHover.containsMouse ? win.theme.surfaceContainerHigh : "transparent"
 
                             Behavior on color {
                                 NumberAnimation {
-                                    duration: 120
+                                    duration: 200
                                 }
                             }
 
@@ -890,7 +915,7 @@ PanelWindow {
                                 anchors.centerIn: parent
                                 text: win.previewIsPin() ? "Unpin" : "Pin"
                                 font.family: win.uiFont
-                                font.pixelSize: 13
+                                font.pixelSize: 24
                                 renderType: Text.NativeRendering
                                 color: win.theme.inkDim
                             }
@@ -905,14 +930,14 @@ PanelWindow {
                         }
 
                         Rectangle {
-                            width: delLabel.width + 28
-                            height: 36
-                            radius: 18
+                            width: delLabel.width + 32
+                            height: 46
+                            radius: 23
                             color: delBtnHover.containsMouse ? win.theme.surfaceContainerHigh : "transparent"
 
                             Behavior on color {
                                 NumberAnimation {
-                                    duration: 120
+                                    duration: 200
                                 }
                             }
 
@@ -922,7 +947,7 @@ PanelWindow {
                                 anchors.centerIn: parent
                                 text: "Delete"
                                 font.family: win.uiFont
-                                font.pixelSize: 13
+                                font.pixelSize: 24
                                 renderType: Text.NativeRendering
                                 color: win.theme.inkDim
                             }

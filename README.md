@@ -22,8 +22,12 @@ in Caelestia's visual language.
 - **Per-row delete**, **Clear history** pill (pins survive it)
 - **Live Caelestia theming** — reads the shell's dynamic `scheme.json`, so
   the panel re-themes itself on wallpaper / light-dark changes
-- **Opens on the focused monitor**, Rubik + `Text.NativeRendering` like the
-  Caelestia bars and panels
+- **Caelestia motion** — elastic-drop entrance, StateLayer hover (ink at 8%,
+  200ms), press ripple, instant close
+- **Opens on the focused monitor**, docked to the screen edge (square edge,
+  6px gaps like the sidebar drawers), Google Sans Flex (loaded from the
+  shell's own font asset) + `Text.NativeRendering` like the Caelestia bars
+  and panels
 
 ## Files
 
@@ -42,7 +46,7 @@ in Caelestia's visual language.
 - `cliphist`
 - `wl-clipboard` (`wl-copy`)
 - Hyprland (window + keybind integration)
-- Fonts: Rubik, Material Symbols Rounded (same as the Caelestia shell)
+- Fonts: Google Sans Flex (loaded from the Caelestia shell's font asset), Material Symbols Rounded (same as the Caelestia shell)
 
 ## Install
 
