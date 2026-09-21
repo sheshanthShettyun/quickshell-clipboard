@@ -76,7 +76,7 @@ Item {
                 return false;
             if (f === "code" && e.kind !== "code")
                 return false;
-            if (f === "text" && (e.isImage || e.kind !== "text"))
+            if (f === "text" && (e.isImage || (e.kind !== "text" && e.kind !== "code")))
                 return false;
             return root.matchQuery(e.preview);
         });
@@ -101,7 +101,7 @@ Item {
                 return e.kind === "url";
             if (k === "code")
                 return e.kind === "code";
-            return !e.isImage && e.kind === "text";
+            return !e.isImage && (e.kind === "text" || e.kind === "code");
         }).length;
     }
 
@@ -401,81 +401,29 @@ Item {
             flickableDirection: Flickable.HorizontalFlick
             boundsBehavior: Flickable.StopAtBounds
 
-            Item {
-                id: chipContent
+                    Row {
+                        id: chipRow
 
-                width: chipRow.width
-                height: 42
+                        height: 42
+                        spacing: Tokens.spacing.small
+                        z: 1
 
-                function activeChip(): var {
-                    for (let i = 0; i < chipRepeater.count; i++) {
-                        const item = chipRepeater.itemAt(i);
-                        if (item && item.selected)
-                            return item;
-                    }
-                    return null;
-                }
+                        Repeater {
+                            id: chipRepeater
 
-                    Rectangle {
-                        id: activePill
-
-                        readonly property var targetChip: chipContent.activeChip()
-
-                        x: targetChip ? targetChip.x : 0
-                        y: targetChip ? targetChip.y : 0
-                        width: targetChip ? targetChip.width : 0
-                        height: 40
-                        radius: 20
-                        color: Colours.tPalette.m3primaryContainer
-                        visible: width > 0
-                        z: 0
-
-                        Behavior on x {
-                        SpringAnimation {
-                            spring: 4.6
-                            damping: 0.42
-                            epsilon: 0.25
-                        }
-                    }
-
-                    Behavior on width {
-                        SpringAnimation {
-                            spring: 4.6
-                            damping: 0.42
-                            epsilon: 0.25
-                        }
-                    }
-                }
-
-                Row {
-                    id: chipRow
-
-                    height: 42
-                    spacing: Tokens.spacing.small
-                    z: 1
-
-                    Repeater {
-                        id: chipRepeater
-
-                        model: [{
-                            k: "all",
-                            t: "All"
-                        }, {
-                            k: "text",
-                            t: "Text"
-                        }, {
-                            k: "images",
-                            t: "Images"
-                        }, {
-                            k: "links",
-                            t: "Links"
-                        }, {
-                            k: "code",
-                            t: "Code"
-                        }, {
-                            k: "pinned",
-                            t: "Pinned"
-                        }]
+                            model: [{
+                                k: "all",
+                                t: "All"
+                            }, {
+                                k: "text",
+                                t: "Text"
+                            }, {
+                                k: "images",
+                                t: "Images"
+                            }, {
+                                k: "links",
+                                t: "Links"
+                            }]
 
                         delegate: Item {
                             required property var modelData
@@ -489,8 +437,7 @@ Item {
                             StyledRect {
                                 anchors.fill: parent
                                 radius: Tokens.rounding.full
-                                color: Colours.tPalette.m3surfaceContainerHighest
-                                opacity: parent.selected ? 0 : 1
+                                color: parent.selected ? Colours.tPalette.m3primary : Colours.tPalette.m3surfaceContainerHighest
                             }
 
                             Rectangle {
@@ -512,7 +459,7 @@ Item {
                                 anchors.centerIn: parent
                                 text: modelData.t + " · " + root.kindCount(modelData.k)
                                 font: Tokens.font.label.medium
-                                color: parent.selected ? Colours.tPalette.m3onPrimaryContainer : Colours.tPalette.m3onSurfaceVariant
+                                color: parent.selected ? Colours.tPalette.m3onPrimary : Colours.tPalette.m3onSurfaceVariant
                             }
 
                             MouseArea {
@@ -526,7 +473,6 @@ Item {
                     }
                 }
             }
-        }
 
         StyledText {
             Layout.fillWidth: true
@@ -628,6 +574,7 @@ Item {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 text: "Clear history"
+                type: TextButton.Filled
                 onClicked: service.wipeHistory()
             }
         }
