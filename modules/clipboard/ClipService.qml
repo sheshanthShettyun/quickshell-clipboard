@@ -102,8 +102,8 @@ Item {
             const isImage = preview.startsWith("[[ binary data");
             let mime = "";
             if (isImage) {
-                const mm = preview.match(/\[\[ binary data \S+ (png|jpe?g|gif|webp|bmp)/);
-                let fmt = mm ? mm[1] : "png";
+                const mm = preview.match(/\[\[ binary data .*?\b(png|jpe?g|gif|webp|bmp)\b/i);
+                let fmt = mm ? mm[1].toLowerCase() : "png";
                 if (fmt === "jpg")
                     fmt = "jpeg";
                 mime = "image/" + fmt;
@@ -253,9 +253,12 @@ Item {
     }
 
     function decodeText(e: var, cb: var): void {
-        const id = root._safeId(e.cid);
-        if (id < 0)
+        const id = root._safeId(e ? e.cid : undefined);
+        if (id < 0) {
+            if (cb)
+                cb(e, "");
             return;
+        }
         root._textCb = cb;
         root._textArg = e;
         textProc.running = false;
@@ -264,13 +267,16 @@ Item {
     }
 
     function exportImage(e: var, destPath: string, cb: var): void {
-        const id = root._safeId(e.cid);
-        if (id < 0)
+        const id = root._safeId(e ? e.cid : undefined);
+        if (id < 0) {
+            if (cb)
+                cb(e, "FAIL");
             return;
+        }
         root._pinCb = cb;
         root._pinArg = e;
         pinProc.running = false;
-        pinProc.command = ["sh", "-c", "cliphist decode " + id + " > '" + destPath + "' 2>/dev/null && [ -s '" + destPath + "' ] && echo OK || echo FAIL"];
+        pinProc.command = ["sh", "-c", "mkdir -p \"$(dirname '" + destPath + "')\" && cliphist decode " + id + " > '" + destPath + "' 2>/dev/null && [ -s '" + destPath + "' ] && echo OK || echo FAIL"];
         pinProc.running = true;
     }
 }

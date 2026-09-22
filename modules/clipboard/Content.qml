@@ -26,6 +26,12 @@ Item {
     property bool previewLoading: false
     property string hoverKey: ""
     property bool hoverLive: true
+    // Singleton overflow menu: one menu for the whole panel, positioned
+    // from the opener row — never clipped by neighboring cards.
+    property string menuRowKey: ""
+    property real menuX: 0
+    property real menuY: 0
+    property var menuEntry: null
 
     ClipService {
         id: service
@@ -40,12 +46,14 @@ Item {
             root.query = "";
             root.filterKind = "all";
             root.previewTarget = null;
+            root.menuRowKey = "";
             root.hoverLive = true;
             service.refresh();
             search.forceActiveFocus();
         } else {
             root.hoverKey = "";
             root.hoverLive = false;
+            root.menuRowKey = "";
             root.previewTarget = null;
         }
     }
@@ -133,7 +141,8 @@ Item {
         if (!e)
             return;
         if (e.isImage) {
-            const dest = pins.dir + "/pin-" + Date.now() + "-" + e.cid + ".bin";
+            const ext = e.mime === "image/jpeg" ? "jpg" : "png";
+            const dest = pins.dir + "/pin-" + Date.now() + "-" + e.cid + "." + ext;
             service.exportImage(e, dest, (arg, res) => {
                 if (res === "OK")
                     pins.addImage(arg.mime, arg.title, arg.sub, dest);
@@ -158,7 +167,7 @@ Item {
         const t = root.previewTarget;
         if (!t)
             return false;
-        return t.source === "pin" ? t.pin.kind === "image" : t.entry.isImage;
+        return t.source === "pin" ? (t.pin && t.pin.kind === "image") : (t.entry && t.entry.isImage);
     }
 
     function previewIsPin(): bool {
@@ -166,56 +175,66 @@ Item {
     }
 
     function openPreviewHistory(e: var): void {
-        const tok = {
+        root.menuRowKey = "";
+        const entry = (e && e.ref) ? e.ref : e;
+        if (!entry)
+            return;
+        const cid = entry.cid;
+        root.previewTarget = {
             source: "history",
-            entry: e
+            cid: cid,
+            entry: entry
         };
-        root.previewTarget = tok;
         root.previewImage = "";
         root.previewText = "";
         root.previewMeta = "";
         root.previewLoading = true;
-        if (e.isImage) {
-            const ext = e.mime === "image/jpeg" ? "jpg" : "png";
-            const dest = Quickshell.env("HOME") + "/.cache/clipboard-panel/full-" + e.cid + "." + ext;
-            service.exportImage(e, dest, (arg, res) => {
-                if (root.previewTarget !== tok)
+        if (entry.isImage) {
+            const ext = entry.mime === "image/jpeg" ? "jpg" : "png";
+            const dest = Quickshell.env("HOME") + "/.cache/clipboard-panel/full-" + cid + "." + ext;
+            service.exportImage(entry, dest, (arg, res) => {
+                if (!root.previewTarget)
                     return;
                 if (res === "OK") {
                     root.previewImage = dest;
-                    root.previewMeta = arg.sub || arg.mime;
+                    root.previewMeta = (arg && (arg.sub || arg.mime)) ? (arg.sub || arg.mime) : "Image";
                 } else {
                     root.previewMeta = "Could not load image";
                 }
                 root.previewLoading = false;
             });
         } else {
-            service.decodeText(e, (arg, text) => {
-                if (root.previewTarget !== tok)
+            service.decodeText(entry, (arg, text) => {
+                if (!root.previewTarget)
                     return;
-                root.previewText = text;
-                const label = arg.kind === "url" ? "Link" : arg.kind === "code" ? "Code" : "Text";
-                root.previewMeta = label + " · " + text.length + " chars";
+                root.previewText = text || "";
+                const label = (arg && arg.kind === "url") ? "Link" : (arg && arg.kind === "code") ? "Code" : "Text";
+                root.previewMeta = label + " · " + (text ? text.length : 0) + " chars";
                 root.previewLoading = false;
             });
         }
     }
 
     function openPreviewPin(p: var): void {
+        root.menuRowKey = "";
+        const pin = (p && p.ref) ? p.ref : p;
+        if (!pin)
+            return;
         root.previewTarget = {
             source: "pin",
-            pin: p
+            created: pin.created,
+            pin: pin
         };
         root.previewImage = "";
         root.previewText = "";
         root.previewLoading = false;
-        if (p.kind === "image") {
-            root.previewImage = p.path;
-            root.previewMeta = p.sub || p.mime || "Image";
+        if (pin.kind === "image") {
+            root.previewImage = pin.path || "";
+            root.previewMeta = pin.sub || pin.mime || "Image";
         } else {
             let body = "";
             try {
-                body = decodeURIComponent(escape(Qt.atob(p.b64 || "")));
+                body = decodeURIComponent(escape(Qt.atob(pin.b64 || "")));
             } catch (err) {
                 body = "(could not decode pinned text)";
             }
@@ -262,6 +281,24 @@ Item {
         root.previewTarget = null;
     }
 
+    function menuAction(a: string): void {
+        const m = root.menuEntry;
+        root.menuRowKey = "";
+        if (!m)
+            return;
+        const target = m.ref || m;
+        if (a === "preview") {
+            if (m.pinned)
+                root.openPreviewPin(target);
+            else
+                root.openPreviewHistory(target);
+        } else if (a === "pin") {
+            root.togglePin(target);
+        } else {
+            root.deleteEntry(target);
+        }
+    }
+
     function reportHover(key: string, part: string): void {
         if (part === "") {
             if (root.hoverKey === key || root.hoverKey.indexOf(key + ":") === 0)
@@ -269,6 +306,18 @@ Item {
         } else {
             root.hoverKey = key + ":" + part;
         }
+    }
+
+    function openRowMenu(key: string, list: var, anchorY: real, entry: var): void {
+        if (root.menuRowKey === key) {
+            root.menuRowKey = "";
+            return;
+        }
+        root.menuRowKey = key;
+        root.menuEntry = entry;
+        const p = list.mapToItem(root, list.width - 262, anchorY - list.contentY);
+        root.menuX = p.x;
+        root.menuY = Math.max(8, Math.min(p.y - 66, root.height - 140));
     }
 
     function rowKeyFor(m: var): string {
@@ -292,6 +341,7 @@ Item {
     }
 
     function togglePin(m: var): void {
+        root.menuRowKey = "";
         if (m.pinned)
             root.unpin(m.ref);
         else
@@ -299,6 +349,7 @@ Item {
     }
 
     function deleteEntry(m: var): void {
+        root.menuRowKey = "";
         if (m.pinned)
             root.unpin(m.ref);
         else
@@ -382,7 +433,10 @@ Item {
 
             Layout.fillWidth: true
             placeholderText: "Search clipboard…"
-            onTextChanged: root.query = text
+            onTextChanged: {
+                root.query = text;
+                root.menuRowKey = "";
+            }
             Keys.onReturnPressed: root.copyFirst()
             Keys.onEnterPressed: root.copyFirst()
             Keys.onEscapePressed: {
@@ -491,23 +545,29 @@ Item {
             clip: true
             spacing: Tokens.spacing.small
             model: root.pinItems()
+            onContentYChanged: root.menuRowKey = ""
 
             StyledScrollBar.vertical: StyledScrollBar {
                 flickable: pinList
             }
 
-            delegate: ClipRow {
-                required property var modelData
+                delegate: ClipRow {
+                    required property var modelData
 
-                width: pinList.width
-                entry: modelData.entry
-                pinned: true
-                hoverKey: root.hoverKey
-                rowKey: modelData.key
-                hoverLive: root.hoverLive
-                uiActive: root.previewTarget === null
-                menuOpen: false
-                onHoverPart: part => root.reportHover(modelData.key, part)
+                    width: pinList.width
+                    entry: modelData.entry
+                    pinned: true
+                    hoverKey: root.hoverKey
+                    rowKey: modelData.key
+                    hoverLive: root.hoverLive
+                    uiActive: root.previewTarget === null
+                    menuActive: root.menuRowKey === modelData.key
+                    onHoverPart: part => root.reportHover(modelData.key, part)
+                    onMenuRequested: ay => root.openRowMenu(modelData.key, pinList, ay, {
+                        pinned: true,
+                        ref: modelData.ref
+                    })
+                    onMenuDismissed: root.menuRowKey = ""
                 onClicked: root.activateEntry(modelData)
                 onDoubleClicked: root.activateEntry(modelData)
                 onPreviewClicked: root.openPreview(modelData)
@@ -541,23 +601,29 @@ Item {
             clip: true
             spacing: Tokens.spacing.small
             model: root.histItems()
+            onContentYChanged: root.menuRowKey = ""
 
             StyledScrollBar.vertical: StyledScrollBar {
                 flickable: histList
             }
 
-            delegate: ClipRow {
-                required property var modelData
+                delegate: ClipRow {
+                    required property var modelData
 
-                width: histList.width
-                entry: modelData.entry
-                pinned: false
-                hoverKey: root.hoverKey
-                rowKey: modelData.key
-                hoverLive: root.hoverLive
-                uiActive: root.previewTarget === null
-                menuOpen: false
-                onHoverPart: part => root.reportHover(modelData.key, part)
+                    width: histList.width
+                    entry: modelData.entry
+                    pinned: false
+                    hoverKey: root.hoverKey
+                    rowKey: modelData.key
+                    hoverLive: root.hoverLive
+                    uiActive: root.previewTarget === null
+                    menuActive: root.menuRowKey === modelData.key
+                    onHoverPart: part => root.reportHover(modelData.key, part)
+                    onMenuRequested: ay => root.openRowMenu(modelData.key, histList, ay, {
+                        pinned: false,
+                        ref: modelData.ref
+                    })
+                    onMenuDismissed: root.menuRowKey = ""
                 onClicked: root.activateEntry(modelData)
                 onDoubleClicked: root.activateEntry(modelData)
                 onPreviewClicked: root.openPreview(modelData)
@@ -580,10 +646,95 @@ Item {
         }
     }
 
+    // Singleton overflow menu: exactly one instance for the whole panel,
+    // positioned from the opener row — never clipped by neighboring cards.
+    Item {
+        anchors.fill: parent
+        visible: root.menuRowKey !== "" && root.previewTarget === null
+        z: 40
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: root.menuRowKey = ""
+        }
+
+        Rectangle {
+            x: root.menuX
+            y: root.menuY
+            width: 150
+            height: menuCol.height + 16
+            radius: 12
+            color: Colours.tPalette.m3surfaceContainerHighest
+
+            Column {
+                id: menuCol
+
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
+                anchors.margins: 8
+                spacing: 2
+
+                Repeater {
+                    model: [{
+                        a: "preview",
+                        g: "visibility",
+                        t: "Preview"
+                    }, {
+                        a: "pin",
+                        g: "star",
+                        t: root.menuEntry && root.menuEntry.pinned ? "Unpin" : "Pin"
+                    }, {
+                        a: "del",
+                        g: "delete",
+                        t: "Delete"
+                    }]
+
+                    delegate: Rectangle {
+                        required property var modelData
+
+                        width: menuCol.width
+                        height: 36
+                        radius: 8
+                        color: mItemHover.containsMouse ? Colours.tPalette.m3surfaceContainerHigh : "transparent"
+
+                        Row {
+                            anchors.fill: parent
+                            anchors.leftMargin: 10
+                            spacing: 10
+
+                            MaterialIcon {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: modelData.g
+                                fontStyle: Tokens.font.icon.small
+                                color: Colours.tPalette.m3onSurfaceVariant
+                            }
+
+                            StyledText {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: modelData.t
+                                font: Tokens.font.label.medium
+                            }
+                        }
+
+                        MouseArea {
+                            id: mItemHover
+
+                            anchors.fill: parent
+                            hoverEnabled: root.hoverLive
+                            onClicked: root.menuAction(modelData.a)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // Preview overlay (flyout): full content + actions
     Item {
         anchors.fill: parent
         visible: root.previewTarget !== null
+        z: 60
 
         StyledRect {
             anchors.fill: parent
@@ -648,7 +799,7 @@ Item {
                     Image {
                         anchors.fill: parent
                         visible: root.previewIsImage() && root.previewImage !== "" && !root.previewLoading
-                        source: visible ? "file://" + root.previewImage : ""
+                        source: visible ? (root.previewImage.startsWith("file://") ? root.previewImage : "file://" + root.previewImage) : ""
                         asynchronous: true
                         fillMode: Image.PreserveAspectFit
                         smooth: true
@@ -682,17 +833,25 @@ Item {
     IpcHandler {
         target: "clipboardUi"
 
-        function setFilter(kind: string): void {
-            if (["all", "text", "images", "links", "code", "pinned"].includes(kind)) {
-                root.query = "";
-                root.filterKind = kind;
+            function setFilter(kind: string): void {
+                if (["all", "text", "images", "links", "code", "pinned"].includes(kind)) {
+                    root.query = "";
+                    root.filterKind = kind;
+                    root.menuRowKey = "";
+                }
             }
-        }
 
-        function previewTop(): void {
-            const h = root.histMatches();
-            if (h.length > 0)
-                root.openPreviewHistory(h[0]);
-        }
+            function previewTop(): void {
+                const h = root.histMatches();
+                if (h.length > 0)
+                    root.openPreviewHistory(h[0]);
+            }
+
+            // TEMP-DEBUG: open the overlay menu on the first history row
+            function debugMenu(): void {
+                const h = root.histItems();
+                if (h.length > 0)
+                    root.openRowMenu(h[0].key, histList, 60, h[0]);
+            }
     }
 }

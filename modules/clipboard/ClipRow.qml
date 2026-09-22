@@ -16,14 +16,21 @@ Item {
     property string hoverKey: ""
     property string rowKey: ""
     property bool hoverLive: true
-    property bool menuOpen: false
+    // Singleton menu: panel owns which row (if any) shows its menu via
+    // the menuActive binding below — the row never writes it, so a menu can
+    // never stick, duplicate, or resurface on a recycled delegate, with
+    // or without hover events (touch-safe). The menu itself renders once
+    // at panel level (never clipped by neighboring cards).
+    property bool menuActive: false
     property bool uiActive: true
-    property double menuOpenedAt: 0
+
+    signal menuRequested(real anchorY)
+    signal menuDismissed()
     property bool holdUsed: false
 
     readonly property bool highlighted: row.hoverKey === row.rowKey || row.hoverKey.indexOf(row.rowKey + ":") === 0
     readonly property bool starLit: row.hoverKey === row.rowKey + ":star"
-    readonly property bool menuLit: row.hoverKey === row.rowKey + ":menu" || row.menuOpen
+    readonly property bool menuLit: row.hoverKey === row.rowKey + ":menu" || row.menuActive
     readonly property bool rowActive: row.highlighted
 
     signal clicked()
@@ -39,11 +46,6 @@ Item {
     readonly property real iconBox: row.isImage ? 120 : 56
 
     implicitHeight: 81
-
-    onRowActiveChanged: {
-        if (!row.rowActive)
-            row.menuOpen = false;
-    }
 
     StyledRect {
         id: bg
@@ -173,7 +175,7 @@ Item {
                         text: "more_vert"
                         fontStyle: Tokens.font.icon.medium
                         color: Colours.tPalette.m3onSurfaceVariant
-                        opacity: (row.menuOpen || row.menuLit) ? 1 : 0.7
+                        opacity: (row.menuActive || row.menuLit) ? 1 : 0.7
 
                         Behavior on opacity {
                             NumberAnimation {
@@ -186,10 +188,7 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: row.hoverLive
                         onContainsMouseChanged: row.hoverPart(containsMouse ? "menu" : "row")
-                        onClicked: {
-                            row.menuOpenedAt = Date.now();
-                            row.menuOpen = !row.menuOpen;
-                        }
+                            onClicked: row.menuRequested(row.y + row.height / 2)
                     }
                 }
             }
@@ -208,124 +207,24 @@ Item {
                     row.holdUsed = false;
                     return;
                 }
-                if (row.menuOpen && Date.now() - row.menuOpenedAt < 500)
-                    return;
-                row.clicked();
+                if (row.menuActive)
+                    row.menuDismissed();
+                else
+                    row.clicked();
             }
             onDoubleClicked: {
                 row.holdUsed = false;
-                if (row.menuOpen && Date.now() - row.menuOpenedAt < 500)
-                    return;
-                row.doubleClicked();
+                if (row.menuActive)
+                    row.menuDismissed();
+                else
+                    row.doubleClicked();
             }
             onContainsMouseChanged: row.hoverPart(containsMouse ? "row" : "")
             onPressAndHold: {
                 row.holdUsed = true;
-                row.menuOpen = true;
-                row.menuOpenedAt = Date.now();
+                row.menuRequested(row.y + row.height / 2);
             }
             pressAndHoldInterval: 400
-        }
-    }
-
-    // Overflow menu (Preview / Pin / Delete)
-    Item {
-        anchors.fill: parent
-        visible: row.menuOpen && row.uiActive
-
-        MouseArea {
-            anchors.fill: parent
-            onClicked: mouse => {
-                mouse.accepted = true;
-                if (Date.now() - row.menuOpenedAt < 350)
-                    return;
-                row.menuOpen = false;
-            }
-        }
-
-        Rectangle {
-            anchors.right: parent.right
-            anchors.rightMargin: 84
-            anchors.verticalCenter: parent.verticalCenter
-            width: 150
-            height: menuCol.height + 16
-            radius: 12
-            color: Colours.tPalette.m3surfaceContainerHighest
-
-            Column {
-                id: menuCol
-
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.top: parent.top
-                anchors.margins: 8
-                spacing: 2
-
-                Repeater {
-                    model: [{
-                        a: "preview",
-                        g: "visibility",
-                        t: "Preview"
-                    }, {
-                        a: "pin",
-                        g: "star",
-                        t: row.pinned ? "Unpin" : "Pin"
-                    }, {
-                        a: "del",
-                        g: "delete",
-                        t: "Delete"
-                    }]
-
-                    delegate: Rectangle {
-                        required property var modelData
-
-                        width: menuCol.width
-                        height: 36
-                        radius: 8
-                        color: mHover.containsMouse ? Colours.tPalette.m3surfaceContainerHigh : "transparent"
-
-                        Row {
-                            anchors.fill: parent
-                            anchors.leftMargin: 10
-                            spacing: 10
-
-                            MaterialIcon {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: modelData.g
-                                fontStyle: Tokens.font.icon.small
-                                color: Colours.tPalette.m3onSurfaceVariant
-                            }
-
-                            StyledText {
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: modelData.t
-                                font: Tokens.font.label.medium
-                            }
-                        }
-
-                        MouseArea {
-                            id: mHover
-
-                            anchors.fill: parent
-                            hoverEnabled: row.hoverLive
-                            onContainsMouseChanged: {
-                                if (containsMouse)
-                                    row.hoverPart("menu");
-                            }
-                            onClicked: {
-                                const a = modelData.a;
-                                row.menuOpen = false;
-                                if (a === "preview")
-                                    row.previewClicked();
-                                else if (a === "pin")
-                                    row.pinClicked();
-                                else
-                                    row.delClicked();
-                            }
-                        }
-                    }
-                }
-            }
         }
     }
 }
